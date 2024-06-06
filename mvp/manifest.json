@@ -1,0 +1,64 @@
+{
+  "manifest": {
+    "technicalInformation": {
+      "projectName": "{{cookiecutter.projectName}}",
+      "appName": "{{cookiecutter.applicationName}}",
+      "modelingFrequency": "",
+      "embeddingGenerationSchedule": "",
+      "predictionType": {
+        "batchInference": false,
+        "onlineInference": false,
+        "vectorEngine": false
+      },
+      "models": [{
+        "modelName": "",
+        "algorithmType": "",
+        "modelType": {
+          "classification": false,
+          "regression": false,
+          "recommendation": false,
+          "clustering": false,
+          "timeSeries": false
+        },
+        "dataSourcesUsedToTrain": [],
+        "featureSchema": [],
+        "predictionSchema": []
+      }]      
+    },
+    "business": {
+      "developmentTeam": {
+        "businessUnit": "",
+        "area": "",
+        "team": "",
+        "costCenter": ""
+      },
+      "consumptionTeam": [{
+        "businessUnit": "",
+        "area": "",
+        "team": "",
+        "costCenter": "",
+        "consumptionFrequency": "",
+        "predictionGenerationSchedule": "",
+        "dataSourcesToPredict": "",
+        "predictionDestination": ""
+      }]
+    },
+    "management": {
+      "projectFocal": "", 
+      "modelingSupport": "",
+      "dataSupport": "",
+      "adminGitAccounts": {{ '["' + '", "'.join(cookiecutter.adminAccounts.split(',')) + '"]' }},
+      "viewerGitAccounts": {{ '["' + '", "'.join(cookiecutter.viewerAccounts.split(',')) + '"]' }},
+      "sensitiveDataConsumer": {
+        "personallyIdentifiableInformation": false,
+        "financialInformation": false,
+        "healthData": false
+      },
+      "sensitiveDataExposer": {
+        "personallyIdentifiableInformation": false,
+        "financialInformation": false,
+        "healthData": false
+      }
+    }
+  }
+}

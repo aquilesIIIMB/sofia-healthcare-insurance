@@ -1,0 +1,229 @@
+# Define the timeout and options for the build
+timeout: '120s'
+tags: ["{{cookiecutter.projectName}}", "{{cookiecutter.applicationName}}"]
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  # Step to check for specific container images in Artifact Registry
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:latest'
+    id: Check Containers in Artifact Registry
+    entrypoint: bash
+    args:
+    - -c
+    - |
+      set -e
+      REPOSITORY="us-central1-docker.pkg.dev/ml-framework-maas/{{cookiecutter.projectName}}"
+      SUFFIXES=("preprocessing" "training" "inference")
+
+      for SUFFIX in "$${SUFFIXES[@]}"; do
+        IMAGES=$(gcloud artifacts docker images list $${REPOSITORY} --format="value(package)")
+        FOUND=false
+        for IMAGE in $$IMAGES; do
+          if [[ $$IMAGE == *"$${SUFFIX}" ]]; then
+            FOUND=true
+            echo "Container image ending with '$${SUFFIX}' found: $${IMAGE}"
+            break
+          fi
+        done
+        if [ "$$FOUND" = false ]; then
+          echo "No container image found ending with '$${SUFFIX}' in the Artifact Registry."
+          exit 1
+        fi
+      done
+      
+  # Step to check for specific container images in Artifact Registry
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:latest'
+    id: Check Containers in Artifact Registry for postprocessing
+    entrypoint: bash
+    args:
+    - -c
+    - |
+      set -e
+      REPOSITORY="us-central1-docker.pkg.dev/ml-framework-maas/{{cookiecutter.projectName}}"
+      SUFFIXES=("postprocessing")
+
+      for SUFFIX in "$${SUFFIXES[@]}"; do
+        IMAGES=$(gcloud artifacts docker images list $${REPOSITORY} --format="value(package)")
+        FOUND=false
+        for IMAGE in $$IMAGES; do
+          if [[ $$IMAGE == *"$${SUFFIX}" ]]; then
+            FOUND=true
+            echo "Container image ending with '$${SUFFIX}' found: $${IMAGE}"
+            break
+          fi
+        done
+        if [ "$$FOUND" = false ]; then
+          echo "No container image found ending with '$${SUFFIX}' in the Artifact Registry."
+          exit 1
+        fi
+      done
+    allowFailure: true
+
+  # Step to check for Vertex AI training jobs with specific labels
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:latest'
+    id: Check Vertex AI Training Jobs
+    entrypoint: bash
+    args:
+    - -c
+    - |
+      set -e
+      APPLICATION_NAME="{{cookiecutter.applicationName}}"
+      COMPONENTS=("preprocessing" "training")
+
+      for COMPONENT in "$${COMPONENTS[@]}"; do
+        LABELS="application_name=$${APPLICATION_NAME},component=$${COMPONENT},git_project={{cookiecutter.projectName}}"
+        FILTER="labels.$${LABELS}"
+        
+        if gcloud ai custom-jobs list --project=${PROJECT_ID} --region=${LOCATION} --filter="$${FILTER}" | grep -q "name:"; then
+          echo "Vertex AI training job for $${APPLICATION_NAME} with component $${COMPONENT} found."
+        else
+          echo "No Vertex AI training job for $${APPLICATION_NAME} with component $${COMPONENT} found."
+          exit 1
+        fi
+      done
+    
+  # Step to check for Vertex AI training jobs with specific labels
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:latest'
+    id: Check Vertex AI Training Jobs for postprocessing
+    entrypoint: bash
+    args:
+    - -c
+    - |
+      set -e
+      APPLICATION_NAME="{{cookiecutter.applicationName}}"
+      COMPONENTS=("postprocessing")
+
+      for COMPONENT in "$${COMPONENTS[@]}"; do
+        LABELS="application_name=$${APPLICATION_NAME},component=$${COMPONENT},git_project={{cookiecutter.projectName}}"
+        FILTER="labels.$${LABELS}"
+        
+        if gcloud ai custom-jobs list --project=${PROJECT_ID} --region=${LOCATION} --filter="$${FILTER}" | grep -q "name:"; then
+          echo "Vertex AI training job for $${APPLICATION_NAME} with component $${COMPONENT} found."
+        else
+          echo "No Vertex AI training job for $${APPLICATION_NAME} with component $${COMPONENT} found."
+          exit 1
+        fi
+      done
+    allowFailure: true
+
+  # Step to check for tables in a BigQuery dataset
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:latest'
+    id: Check BigQuery Dataset Tables
+    entrypoint: bash
+    args:
+    - -c
+    - |
+      set -e
+      DATASET_ID="ml-framework-maas:{{cookiecutter.datasetMaasName}}"
+      
+      if [[ $(bq ls --format=prettyjson $${DATASET_ID} | jq '.[].tableReference.tableId' | wc -l) -eq 0 ]]; then
+        echo "No tables found in BigQuery dataset $${DATASET_ID}"
+        exit 1
+      else
+        echo "Tables found in BigQuery dataset $${DATASET_ID}"
+      fi
+    allowFailure: true
+
+  # Step to check for files in a Cloud Storage bucket
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:latest'
+    id: Check Files in Cloud Storage Bucket
+    entrypoint: bash
+    args:
+    - -c
+    - |
+      set -e
+      BUCKET_NAME="{{cookiecutter.bucketMaasName}}"
+      
+      if gsutil ls gs://$${BUCKET_NAME}/** | grep -q "gs://"; then
+        echo "Files found in Cloud Storage bucket $${BUCKET_NAME}"
+      else
+        echo "No files found in Cloud Storage bucket $${BUCKET_NAME}"
+        exit 1
+      fi
+    allowFailure: true
+
+  # Step to check for Vertex AI models with specific labels
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:latest'
+    id: Check Vertex AI Models
+    entrypoint: bash
+    args:
+    - -c
+    - |
+      set -e
+      LABELS="labels.application_name={{cookiecutter.applicationName}},labels.git_project={{cookiecutter.projectName}}"
+      
+      if gcloud ai models list --project=${PROJECT_ID} --region=${LOCATION} --filter="$${LABELS}" | grep -q "name:"; then
+        echo "Vertex AI model with specified labels found."
+      else
+        echo "No Vertex AI model with specified labels found."
+        exit 1
+      fi
+
+  # Step to check for Vertex AI endpoints with specific labels
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:latest'
+    id: Check Vertex AI Endpoints
+    entrypoint: bash
+    args:
+    - -c
+    - |
+      set -e
+      LABELS="labels.application_name={{cookiecutter.applicationName}} AND labels.git_project={{cookiecutter.projectName}}"
+      
+      if gcloud ai endpoints list --project=${PROJECT_ID} --region=${LOCATION} --filter="$${LABELS}" | grep -q "name:"; then
+        echo "Vertex AI endpoint with specified labels found."
+      else
+        echo "No Vertex AI endpoint with specified labels found."
+        exit 1
+      fi
+    allowFailure: true
+    
+
+  # Step to create the check_excel.py script
+  - name: 'ubuntu'
+    id: Create Python Script
+    entrypoint: bash
+    args:
+    - -c
+    - |
+      cat << EOF > check_excel.py
+      import pandas as pd
+      import sys
+      import os
+
+      def check_excel_row_count(file_path):
+          try:
+              df = pd.read_excel(file_path)
+              if len(df.index) > 1:
+                  print(f"{file_path} has more than one row.")
+              else:
+                  print(f"{file_path} does not have more than one row.")
+                  sys.exit(1)
+          except Exception as e:
+              print(f"Error processing file {file_path}: {e}")
+              sys.exit(1)
+
+      def find_excel_files(start_path):
+          for root, dirs, files in os.walk(start_path):
+              for file in files:
+                  if file in ['data_quality_metrics.xlsx', 'model_quality_metrics.xlsx']:
+                      check_excel_row_count(os.path.join(root, file))
+
+      if __name__ == "__main__":
+          start_directory = sys.argv[1]
+          find_excel_files(start_directory)
+      EOF
+
+  # Clone the GitHub repository
+  - name: 'gcr.io/cloud-builders/git'
+    args: ['clone', 'https://github.com/aquilesIIIMB/{{cookiecutter.projectName}}.git']
+
+  # Install Python and Pandas (or another library to read Excel files)
+  - name: 'python:3.8'
+    entrypoint: pip
+    args: ['install', 'pandas', 'openpyxl']
+
+  # Run the Python script to check Excel files
+  - name: 'python:3.8'
+    entrypoint: python
+    args: ['check_excel.py', '{{cookiecutter.projectName}}/maas/mvp/']
